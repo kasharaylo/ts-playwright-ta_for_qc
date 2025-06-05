@@ -7,6 +7,5 @@ node_modules/
 /playwright/.cache/
 package-lock.json
 package.json
-playwright.config.ts
 tests/example.spec.ts
 tests-examples/demo-todo-app.spec.ts
