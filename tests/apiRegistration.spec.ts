@@ -10,7 +10,6 @@ test('API Sign Up', async ({ request }) => {
 const response = await request.post('https://gitlab.testautomate.me/api/v4/users', {
   headers: {
     Authorization: 'Bearer FKzy_BpV5wAybKf7Z9JX',
-    'Content-Type': 'application/x-www-form-urlencoded'
   },
   form: {
     name: userData.firstName,
@@ -33,9 +32,6 @@ test('API Sign In', async ({ request }) => {
     const registeredUser = JSON.parse(userData)
     
     const response = await request.post('https://gitlab.testautomate.me/oauth/token', {
-        headers: {
-            'Content-Type': 'application/x-www-form-urlencoded'
-        },
         form: {
             grant_type: 'password',
             username: registeredUser.email,
