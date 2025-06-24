@@ -22,7 +22,7 @@ test('Sign Up', async ({ page }) => {
     await fs.writeFile(userFilePath, JSON.stringify({
         email: userData.email,
         password: userData.password
-    }, null, 2))
+    }, null, 2));
 })
 
 test('Sign In', async ({ page }) => {
