@@ -1,5 +1,5 @@
-import { test, expect } from '@playwright/test'
-import { userData } from '../testData/users.data'
+import { test, expect, request } from '@playwright/test'
+import { userData, developerData } from '../testData/users.data'
 import { regisration, signIn } from '../pages/register.page'
 import * as fs from 'fs/promises'
 import * as path from 'path'
@@ -96,5 +96,143 @@ test('API Sign In and Verify Project Creation', async ({ request }) => {
 	console.log(projectName)
 	console.log(encodedPath)
 
+    // Todo: Uncomment the next line to enable API response status check
     //expect(apiResponse.status()).toBe(200)
+})
+
+    // When I register 'developer' user via Gitlab 'API'
+    // Then I see the 'developer' user is registered
+
+test('Register Developer User via API', async ({ request }) => {
+    const response = await request.post('https://gitlab.testautomate.me/api/v4/users', {
+          headers: {
+            Authorization: 'Bearer FKzy_BpV5wAybKf7Z9JX',
+        },
+        form: {
+            email: developerData.email,
+            password: developerData.password,
+            username: developerData.userName,
+            name: developerData.lastName,
+            skip_confirmation: true,
+            projects_limit: 10,
+            can_create_group: true
+        }
+    })
+    expect(response.status()).toBe(201)
+
+    // Save developer user data to file, including password
+    const developerUserResponse = await response.json()
+    await fs.writeFile(
+        path.resolve(__dirname, '../testData/developerUser.json'),
+        JSON.stringify(
+            {
+                ...developerUserResponse,
+                password: developerData.password, // Ensure password is saved
+                email: developerData.email        // Ensure email is saved
+            },
+            null,
+            2
+        )
+    )
+})
+
+    // When I add 'developer' user as a member of the project
+    // Then I can can see 'developer' user in the project member list
+
+test('Add Developer User to Project Members', async ({ page, request }) => {
+    const developerData = JSON.parse(await fs.readFile(path.resolve(__dirname, '../testData/developerUser.json'), 'utf-8'))
+
+    // Read admin token from file
+    const tokenData = JSON.parse(await fs.readFile(tokenFilePath, 'utf-8'))
+
+    // Add developer to project via API
+    const encodedPath = encodeURIComponent(`${userData.userName}/${projectName}`);
+    const response = await request.post(`https://gitlab.testautomate.me/api/v4/projects/${encodedPath}/members`, {
+        headers: {
+            Authorization: `Bearer ${tokenData.access_token}`,
+        },
+        form: {
+            user_id: developerData.id,
+            access_level: 30 // Developer access level
+        }
+    })
+    // Todo: Uncomment the next line to enable API response status check
+    expect(response.status()).toBe(201)
+
+    // Verify in UI
+    await page.goto(`https://gitlab.testautomate.me/${userData.userName}/${projectName}/-/project_members`)
+    await expect(page.getByText(developerData.username)).toBeVisible()
+})
+
+    // When I create an issue and assign 'developer' user to created issue
+    // Then I see the issue is created
+    //  And I see 'developer' user is assigned to the issue
+
+test('Create Issue and Assign Developer User', async ({ page, request }) => {
+    // Read admin token from file
+    const tokenData = JSON.parse(await fs.readFile(tokenFilePath, 'utf-8'))
+
+    // Create an issue via API
+    const encodedPath = encodeURIComponent(`${userData.userName}/${projectName}`);
+    const response = await request.post(`https://gitlab.testautomate.me/api/v4/projects/${encodedPath}/issues`, {
+        headers: {
+            Authorization: `Bearer ${tokenData.access_token}`,
+        },
+        form: {
+            title: `Issue for ${developerData.userName}`,
+            description: 'This is a test issue',
+            assignee_ids: String(developerData.id)
+        }
+    })
+    // Todo: Uncomment the next line to enable API response status check
+    expect(response.status()).toBe(201)
+
+    const issueData = await response.json()
+    
+    // Verify in UI
+    await page.goto(`https://gitlab.testautomate.me/${userData.userName}/${projectName}/-/issues/${issueData.iid}`)
+    await expect(page.getByText(issueData.title)).toBeVisible()
+    await expect(page.getByText(developerData.userName)).toBeVisible()
+})
+
+    // When I logout
+    // Then I am not logged in visitor
+
+test('Logout and Verify Not Logged In', async ({ page }) => {
+    const signInPage = new SignInPage(page)
+
+    // Read admin info from file
+    const adminData = await fs.readFile(adminFilePath, 'utf-8')
+    const registeredUser = JSON.parse(adminData)
+
+    await page.goto('https://gitlab.testautomate.me/users/sign_in')
+    await signInPage.userName.fill(registeredUser.email)
+    await signInPage.password.fill(registeredUser.password)
+    await signInPage.rememberMe.check({ force: true })
+    await signInPage.signInButton.click()
+
+    // Logout
+    await page.locator('.header-user-avatar').click()
+    await page.getByRole('link', { name: 'Sign out' }).click()
+    
+    
+    // Verify not logged in
+    await expect(page).toHaveURL('https://gitlab.testautomate.me/users/sign_in')
+})
+
+    // When I login as 'developer' user
+    // Then I become logged in as 'developer' user
+
+test('Login as Developer User', async ({ page }) => {
+    const developerData = JSON.parse(await fs.readFile(path.resolve(__dirname, '../testData/developerUser.json'), 'utf-8'))
+    const signInPage = new SignInPage(page)
+
+    await page.goto('https://gitlab.testautomate.me/users/sign_in')
+    await signInPage.userName.fill(developerData.email)
+    await signInPage.password.fill(developerData.password)
+    await signInPage.rememberMe.check({ force: true })
+    await signInPage.signInButton.click()
+
+    // Verify login
+    await expect(page).toHaveURL(`https://gitlab.testautomate.me/`)
 })
